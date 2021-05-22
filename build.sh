@@ -1,18 +1,23 @@
 #!/bin/bash
-PATH=$PATH:$ANDROID_HOME/build-tools/28.0.3
-PATH=$PATH:$NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin
+NDK_HOME=/home/mirmik/Android/Sdk/ndk/22.1.7171670
+OVR_HOME=/home/mirmik/src/ovr_sdk_mobile_1.44.0
+ANDROID_HOME=/home/mirmik/Android/Sdk
+
+JAVACPATH=/home/mirmik/soft/android-studio/jre/bin
+DEXPATH=$ANDROID_HOME/build-tools/28.0.3
+COMPILERPATH=$NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin
 
 rm -rf build
 mkdir -p build
 pushd build > /dev/null
-javac\
+$JAVACPATH/javac\
 	-classpath $ANDROID_HOME/platforms/android-26/android.jar\
 	-d .\
 	../src/main/java/com/makepad/hello_quest/*.java
-dx --dex --output classes.dex .
+$DEXPATH/dx --dex --output classes.dex .
 mkdir -p lib/arm64-v8a
 pushd lib/arm64-v8a > /dev/null
-aarch64-linux-android26-clang\
+$COMPILERPATH/aarch64-linux-android26-clang\
     -march=armv8-a\
     -shared\
     -I $NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/include/\
@@ -22,6 +27,8 @@ aarch64-linux-android26-clang\
     -landroid\
     -llog\
     -lvrapi\
+    -lGLESv3\
+    -lEGL\
     -o libmain.so\
    ../../../src/main/cpp/*.c
 cp $OVR_HOME/VrApi/Libs/Android/arm64-v8a/Debug/libvrapi.so .
