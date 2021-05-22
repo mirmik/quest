@@ -20,6 +20,9 @@ pushd lib/arm64-v8a > /dev/null
 $COMPILERPATH/aarch64-linux-android26-clang\
     -march=armv8-a\
     -shared\
+    -I ~/project/rabbit\
+    -I ~/project/nos\
+    -I ~/project/igris\
     -I $NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/include/\
     -I $OVR_HOME/VrApi/Include\
     -L $NDK_HOME/platforms/android-26/arch-arm64/usr/lib\
@@ -30,7 +33,8 @@ $COMPILERPATH/aarch64-linux-android26-clang\
     -lGLESv3\
     -lEGL\
     -o libmain.so\
-   ../../../src/main/cpp/*.c
+   ../../../src/main/cpp/*.c   \
+   ../../../src/main/cpp/*.cpp
 cp $OVR_HOME/VrApi/Libs/Android/arm64-v8a/Debug/libvrapi.so .
 popd > /dev/null
 aapt\

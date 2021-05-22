@@ -12,6 +12,10 @@
 #include <stdlib.h>
 #include <unistd.h>
 
+#include <rabbit/opengl/drawer.h>
+#include <rabbit/geom/surface.h>
+#include <rabbit/mesh.h>
+
 #define error(...) __android_log_print(ANDROID_LOG_ERROR, TAG, __VA_ARGS__)
 
 #ifndef NDEBUG
@@ -111,7 +115,7 @@ egl_create(struct egl* egl)
     }
 
     info("allocate EGL configs");
-    EGLConfig* configs = malloc(num_configs * sizeof(EGLConfig));
+    EGLConfig* configs = (EGLConfig*) malloc(num_configs * sizeof(EGLConfig));
     if (configs == NULL) {
         error("cant allocate EGL configs: %s",
               egl_get_error_string(eglGetError()));
@@ -271,7 +275,7 @@ framebuffer_create(struct framebuffer* framebuffer, GLsizei width,
         vrapi_GetTextureSwapChainLength(framebuffer->color_texture_swap_chain);
 
     info("allocate depth renderbuffers");
-    framebuffer->depth_renderbuffers =
+    framebuffer->depth_renderbuffers = (GLuint*)
         malloc(framebuffer->swap_chain_length * sizeof(GLuint));
     if (framebuffer->depth_renderbuffers == NULL) {
         error("can't allocate depth renderbuffers");
@@ -279,7 +283,7 @@ framebuffer_create(struct framebuffer* framebuffer, GLsizei width,
     }
 
     info("allocate framebuffers");
-    framebuffer->framebuffers =
+    framebuffer->framebuffers = (GLuint*)
         malloc(framebuffer->swap_chain_length * sizeof(GLuint));
     if (framebuffer->framebuffers == NULL) {
         error("can't allocate framebuffers");
@@ -346,22 +350,17 @@ framebuffer_destroy(struct framebuffer* framebuffer)
     vrapi_DestroyTextureSwapChain(framebuffer->color_texture_swap_chain);
 }
 
-enum attrib
-{
-    ATTRIB_BEGIN,
-    ATTRIB_POSITION = ATTRIB_BEGIN,
-    ATTRIB_COLOR,
-    ATTRIB_END,
-};
+#define ATTRIB_BEGIN 0
+#define ATTRIB_POSITION 0
+#define ATTRIB_COLOR 1
+#define ATTRIB_END 2
 
-enum uniform
-{
-    UNIFORM_BEGIN,
-    UNIFORM_MODEL_MATRIX = UNIFORM_BEGIN,
-    UNIFORM_VIEW_MATRIX,
-    UNIFORM_PROJECTION_MATRIX,
-    UNIFORM_END,
-};
+
+#define UNIFORM_BEGIN 0
+#define UNIFORM_MODEL_MATRIX 0
+#define UNIFORM_VIEW_MATRIX 1
+#define UNIFORM_PROJECTION_MATRIX 2
+#define UNIFORM_END 3 
 
 struct program
 {
@@ -414,7 +413,7 @@ compile_shader(GLenum type, const char* string)
     if (status == GL_FALSE) {
         GLint length = 0;
         glGetShaderiv(shader, GL_INFO_LOG_LENGTH, &length);
-        char* log = malloc(length);
+        char* log = (char*) malloc(length);
         glGetShaderInfoLog(shader, length, NULL, log);
         error("can't compile shader: %s", log);
         exit(EXIT_FAILURE);
@@ -431,7 +430,7 @@ program_create(struct program* program)
     GLuint fragment_shader =
         compile_shader(GL_FRAGMENT_SHADER, FRAGMENT_SHADER);
     glAttachShader(program->program, fragment_shader);
-    for (enum attrib attrib = ATTRIB_BEGIN; attrib != ATTRIB_END; ++attrib) {
+    for (uint8_t attrib = ATTRIB_BEGIN; attrib != ATTRIB_END; ++attrib) {
         glBindAttribLocation(program->program, attrib, ATTRIB_NAMES[attrib]);
     }
     glLinkProgram(program->program);
@@ -440,12 +439,12 @@ program_create(struct program* program)
     if (status == GL_FALSE) {
         GLint length = 0;
         glGetProgramiv(program->program, GL_INFO_LOG_LENGTH, &length);
-        char* log = malloc(length);
+        char* log = (char*) malloc(length);
         glGetProgramInfoLog(program->program, length, NULL, log);
         error("can't link program: %s", log);
         exit(EXIT_FAILURE);
     }
-    for (enum uniform uniform = UNIFORM_BEGIN; uniform != UNIFORM_END;
+    for (uint8_t uniform = UNIFORM_BEGIN; uniform != UNIFORM_END;
          ++uniform) {
         program->uniform_locations[uniform] =
             glGetUniformLocation(program->program, UNIFORM_NAMES[uniform]);
@@ -517,7 +516,7 @@ geometry_create(struct geometry* geometry)
     glGenBuffers(1, &geometry->vertex_buffer);
     glBindBuffer(GL_ARRAY_BUFFER, geometry->vertex_buffer);
     glBufferData(GL_ARRAY_BUFFER, sizeof(VERTICES), VERTICES, GL_STATIC_DRAW);
-    for (enum attrib attrib = ATTRIB_BEGIN; attrib != ATTRIB_END; ++attrib) {
+    for (uint8_t attrib = ATTRIB_BEGIN; attrib != ATTRIB_END; ++attrib) {
         struct attrib_pointer attrib_pointer = ATTRIB_POINTERS[attrib];
         glEnableVertexAttribArray(attrib);
         glVertexAttribPointer(attrib, attrib_pointer.size, attrib_pointer.type,
@@ -787,7 +786,7 @@ android_main(struct android_app* android_app)
     info("attach current thread");
     ovrJava java;
     java.Vm = android_app->activity->vm;
-    (*java.Vm)->AttachCurrentThread(java.Vm, &java.Env, NULL);
+    (*java.Vm).AttachCurrentThread(&java.Env, NULL);
     java.ActivityObject = android_app->activity->clazz;
 
     info("initialize vr api");
@@ -847,5 +846,5 @@ android_main(struct android_app* android_app)
     vrapi_Shutdown();
 
     info("detach current thread");
-    (*java.Vm)->DetachCurrentThread(java.Vm);
+    (*java.Vm).DetachCurrentThread();
 }
