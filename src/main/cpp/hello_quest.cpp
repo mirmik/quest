@@ -16,6 +16,8 @@
 #include <rabbit/geom/surface.h>
 #include <rabbit/mesh.h>
 
+#include <chrono>
+
 #define error(...) __android_log_print(ANDROID_LOG_ERROR, TAG, __VA_ARGS__)
 
 #ifndef NDEBUG
@@ -503,8 +505,8 @@ struct attrib_pointer
 
 struct vertex
 {
-    float position[4];
-    float color[4];
+    float position[3];
+    float color[3];
 };
 
 struct geometry
@@ -526,44 +528,6 @@ static const struct attrib_pointer ATTRIB_POINTERS[ATTRIB_END] =
     },
 };
 
-static const struct vertex VERTICES[] =
-{
-    { { -1.0, +1.0, -1.0 }, { 1.0, 0.0, 1.0 } },
-    { { +1.0, +1.0, -1.0 }, { 0.0, 1.0, 0.0 } },
-    { { +1.0, +1.0, +1.0 }, { 0.0, 0.0, 1.0 } },
-    { { -1.0, +1.0, +1.0 }, { 1.0, 0.0, 0.0 } },
-    { { -1.0, -1.0, -1.0 }, { 0.0, 0.0, 1.0 } },
-    { { -1.0, -1.0, +1.0 }, { 0.0, 1.0, 0.0 } },
-    { { +1.0, -1.0, +1.0 }, { 1.0, 0.0, 1.0 } },
-    { { +1.0, -1.0, -1.0 }, { 1.0, 0.0, 0.0 } },
-};
-
-
-
-static const struct vertex VERTICES2[] =
-{
-    { { -1.0 + 3, +1.0, -1.0 }, { 1.0, 0.0, 1.0 } },
-    { { +1.0 + 3, +1.0, -1.0 }, { 0.0, 1.0, 0.0 } },
-    { { +1.0 + 3, +1.0, +1.0 }, { 0.0, 0.0, 1.0 } },
-    { { -1.0 + 3, +1.0, +1.0 }, { 1.0, 0.0, 0.0 } },
-    { { -1.0 + 3, -1.0, -1.0 }, { 0.0, 0.0, 1.0 } },
-    { { -1.0 + 3, -1.0, +1.0 }, { 0.0, 1.0, 0.0 } },
-    { { +1.0 + 3, -1.0, +1.0 }, { 1.0, 0.0, 1.0 } },
-    { { +1.0 + 3, -1.0, -1.0 }, { 1.0, 0.0, 0.0 } },
-};
-
-static const unsigned short INDICES[] =
-{
-    0, 2, 1, 2, 0, 3,
-    4, 6, 5, 6, 4, 7,
-    2, 6, 7, 7, 1, 2,
-    0, 4, 5, 5, 3, 0,
-    3, 5, 6, 6, 2, 3,
-    0, 1, 7, 7, 4, 0,
-};
-
-static const GLsizei NUM_INDICES = sizeof(INDICES) / sizeof(INDICES[0]);
-
 static void
 geometry_create(struct geometry* geometry)
 {
@@ -571,7 +535,6 @@ geometry_create(struct geometry* geometry)
     glBindVertexArray(geometry->vertex_array);
     glGenBuffers(1, &geometry->vertex_buffer);
     glBindBuffer(GL_ARRAY_BUFFER, geometry->vertex_buffer);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(VERTICES), VERTICES, GL_STATIC_DRAW);
     for (uint8_t attrib = ATTRIB_BEGIN; attrib != ATTRIB_END; ++attrib)
     {
         struct attrib_pointer attrib_pointer = ATTRIB_POINTERS[attrib];
@@ -582,8 +545,6 @@ geometry_create(struct geometry* geometry)
     }
     glGenBuffers(1, &geometry->index_buffer);
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, geometry->index_buffer);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(INDICES), INDICES,
-                 GL_STATIC_DRAW);
     glBindVertexArray(0);
 }
 
@@ -626,10 +587,19 @@ renderer_destroy(struct renderer* renderer)
     }
 }
 
+double mticks()
+{
+    struct timeval tv;
+    gettimeofday(&tv, 0);
+    return (double) tv.tv_usec / 1000 + tv.tv_sec * 1000;
+}
+
+std::vector<std::pair<rabbit::vec3, rabbit::vec3>> vertices2;
+std::vector<std::pair<rabbit::vec3, rabbit::vec3>> vertices_sphere;
 static ovrLayerProjection2
 renderer_render_frame(struct renderer* renderer, ovrTracking2* tracking)
 {
-    ovrMatrix4f model_matrix = ovrMatrix4f_CreateTranslation(0.0, 0.0, -1.0);
+    ovrMatrix4f model_matrix = ovrMatrix4f_CreateTranslation(0.0, 0.0, -1);
     model_matrix = ovrMatrix4f_Transpose(&model_matrix);
 
     ovrLayerProjection2 layer = vrapi_DefaultLayerProjection2();
@@ -656,60 +626,96 @@ renderer_render_frame(struct renderer* renderer, ovrTracking2* tracking)
             GL_DRAW_FRAMEBUFFER,
             framebuffer->framebuffers[framebuffer->swap_chain_index]);
 
-        glEnable(GL_CULL_FACE);
+        //glEnable(GL_CULL_FACE);
         glEnable(GL_DEPTH_TEST);
         glEnable(GL_SCISSOR_TEST);
         glViewport(0, 0, framebuffer->width, framebuffer->height);
         glScissor(0, 0, framebuffer->width, framebuffer->height);
 
         renderer->rabbit_drawer.clean(0.2f, 0.3f, 0.3f, 1.0f);
+        auto & drawer = renderer->rabbit_drawer;
 
-        auto surf = rabbit::sphere_surface(3);
-        auto mesh = rabbit::surface_rubic_mesh(surf, 10, 10);
+        auto surf_sphere = rabbit::sphere_surface(0.5);
+        //auto surf = rabbit::parabolic_surface(0.5, 0.5);
+        auto surf = rabbit::torus_surface(2, 0.3);
+        auto mesh = rabbit::surface_rubic_mesh(surf, 40, 40);
+        auto mesh_sphere = rabbit::surface_rubic_mesh(surf_sphere, 40, 40);
 
         glUseProgram(renderer->program.program);
-        glUniformMatrix4fv(
-            renderer->program.uniform_locations[UNIFORM_MODEL_MATRIX], 1,
-            GL_FALSE, (const GLfloat*)&model_matrix);
-        glUniformMatrix4fv(
-            renderer->program.uniform_locations[UNIFORM_VIEW_MATRIX], 1,
-            GL_FALSE, (const GLfloat*)&view_matrix);
-        glUniformMatrix4fv(
-            renderer->program.uniform_locations[UNIFORM_PROJECTION_MATRIX], 1,
-            GL_FALSE, (const GLfloat*)&projection_matrix);
+
+        int model_matrix_loc = renderer->program.uniform_locations[UNIFORM_MODEL_MATRIX];
+        int view_matrix_loc = renderer->program.uniform_locations[UNIFORM_VIEW_MATRIX];
+        int proj_matrix_loc = renderer->program.uniform_locations[UNIFORM_PROJECTION_MATRIX];
+
+        drawer.uniform_mat4f(model_matrix_loc, (const GLfloat*)&model_matrix);
+        drawer.uniform_mat4f(view_matrix_loc, (const GLfloat*)&view_matrix);
+        drawer.uniform_mat4f(proj_matrix_loc, (const GLfloat*)&projection_matrix);
+
+        drawer.set_buffers(
+            renderer->geometry.vertex_array,
+            renderer->geometry.vertex_buffer,
+            renderer->geometry.index_buffer);
+
+        drawer.set_vertices_stride(6);
+
         glBindVertexArray(renderer->geometry.vertex_array);
 
-        glBindBuffer(GL_ARRAY_BUFFER, renderer->geometry.vertex_buffer);
-        glBufferData(GL_ARRAY_BUFFER, sizeof(VERTICES), VERTICES, GL_DYNAMIC_DRAW);
-        glDrawElements(GL_TRIANGLES, NUM_INDICES, GL_UNSIGNED_SHORT, NULL);
+        if (vertices2.size() == 0)
+        {
+            for (auto & v : mesh.vertices)
+            {
+                auto r = (double)std::rand() / (double)(RAND_MAX);
+                auto  g = (double)std::rand() / (double)(RAND_MAX);
+                auto b = (double)std::rand() / (double)(RAND_MAX);
+                vertices2.push_back({ v, {r, g, b} });
+            }
 
-        glBindBuffer(GL_ARRAY_BUFFER, renderer->geometry.vertex_buffer);
-        glBufferData(GL_ARRAY_BUFFER, sizeof(VERTICES), VERTICES2, GL_DYNAMIC_DRAW);
-        glDrawElements(GL_TRIANGLES, NUM_INDICES, GL_UNSIGNED_SHORT, NULL);
+
+            for (auto & v : mesh_sphere.vertices)
+            {
+                auto r = (double)std::rand() / (double)(RAND_MAX);
+                auto  g = (double)std::rand() / (double)(RAND_MAX);
+                auto b = (double)std::rand() / (double)(RAND_MAX);
+                vertices_sphere.push_back({ v, {r, g, b} });
+            }
+        }
+
+        for (int i = 0; i < 8; ++i)
+        {
+            float strt = -1;
+            float fini = 1;
+
+            float k = (float)i / (float)(8 - 1);
+            float pos = strt * k + fini * (1 - k);
+
+            drawer.uniform_mat4f(model_matrix_loc, rabbit::mov3({0, 0, pos}).to_mat4());
+
+            drawer.draw_triangles(
+                (float*)vertices2.data(), vertices2.size(),
+                (uint32_t*)mesh.triangles.data(), mesh.triangles.size());
+        }
+
+        auto now = std::chrono::system_clock::now().time_since_epoch();
+        auto time = std::chrono::duration_cast<std::chrono::seconds>(now).count();
+        
+        drawer.uniform_mat4f(model_matrix_loc, rabbit::mov3({0, 0, sin(mticks()/1000)}).to_mat4());
+        
+        drawer.draw_triangles(
+                (float*)vertices_sphere.data(), vertices_sphere.size(),
+                (uint32_t*)mesh_sphere.triangles.data(), mesh_sphere.triangles.size());
+
+        /*glBindBuffer(GL_ARRAY_BUFFER, renderer->geometry.vertex_buffer);
+        glBufferData(GL_ARRAY_BUFFER, 6 * sizeof(float)*vertices2.size(), vertices2.data(), GL_DYNAMIC_DRAW);
+
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, renderer->geometry.index_buffer);
+        glBufferData(GL_ELEMENT_ARRAY_BUFFER, 3 * sizeof(GLuint)*mesh.triangles.size(), mesh.triangles.data(),
+                     GL_DYNAMIC_DRAW);
+
+        glDrawElements(GL_TRIANGLES, 3 * sizeof(GLuint)*mesh.triangles.size(), GL_UNSIGNED_INT, NULL);*/
+
+
 
         glBindVertexArray(0);
-
-        GLfloat vertices[] =
-        {
-            0.5f,  0.5f, 0.0f,  // Top Right
-            0.5f, -0.5f, 0.0f,  // Bottom Right
-            -0.5f, -0.5f, 0.0f,  // Bottom Left
-            -0.5f,  0.5f, 0.0f   // Top Left
-        };
-        GLuint indices[] =    // Note that we start from 0!
-        {
-            0, 1, 3,  // First Triangle
-            1, 2, 3   // Second Triangle
-        };
-
-
-
-        /*renderer->rabbit_drawer.draw_mesh(mesh,
-            rabbit::pose3().to_mat4(),
-            rabbit::pose3().to_mat4(),
-            rabbit::pose3().to_mat4()
-        );*/
-
 
         glClearColor(0.0, 0.0, 0.0, 1.0);
         glScissor(0, 0, 1, framebuffer->height);
