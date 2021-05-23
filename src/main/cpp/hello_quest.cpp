@@ -13,9 +13,13 @@
 #include <unistd.h>
 
 #include <rabbit/opengl/drawer.h>
+#include <rabbit/opengl/shader_collection.h>
 #include <rabbit/geom/surface.h>
 #include <rabbit/mesh.h>
+#include <rabbit/util.h>
 
+
+#include <map>
 #include <chrono>
 
 #define error(...) __android_log_print(ANDROID_LOG_ERROR, TAG, __VA_ARGS__)
@@ -25,6 +29,8 @@
 #endif // NDEBUG
 
 static const char* TAG = "hello_quest";
+//ovrPosef PointerPose_;
+std::map<int, ovrPosef> PoseMap_;
 
 static const char*
 egl_get_error_string(EGLint error)
@@ -435,6 +441,33 @@ static const char FRAGMENT_SHADER[] = "#version 300 es\n"
                                       "	outColor = vec4(vColor, 1.0);\n"
                                       "}\n";
 
+static const char VERTEX_SHADER_2[] =
+    "#version 300 es\n"
+    "\n"
+    "in vec3 aPosition;\n"
+    "in vec3 aColor;\n"
+    "uniform mat4 uModelMatrix;\n"
+    "uniform mat4 uViewMatrix;\n"
+    "uniform mat4 uProjectionMatrix;\n"
+    "\n"
+    "out vec3 vColor;\n"
+    "void main()\n"
+    "{\n"
+    "   gl_Position = uProjectionMatrix * ( uViewMatrix * ( uModelMatrix * vec4( "
+    "aPosition * 0.1, 1.0 ) ) );\n"
+    "   vColor = aColor;\n"
+    "}\n";
+
+static const char FRAGMENT_SHADER_2[] = "#version 300 es\n"
+                                        "\n"
+                                        "in lowp vec3 vColor;\n"
+                                        "out lowp vec4 outColor;\n"
+                                        "void main()\n"
+                                        "{\n"
+                                        " outColor = vec4(vColor, 1.0);\n"
+                                        "}\n";
+
+
 static GLuint
 compile_shader(GLenum type, const char* string)
 {
@@ -594,6 +627,37 @@ double mticks()
     return (double) tv.tv_usec / 1000 + tv.tv_sec * 1000;
 }
 
+auto draw_mesh(rabbit::opengl_drawer & drawer, rabbit::mesh & mesh)
+{
+
+    std::vector<std::pair<rabbit::vec3, rabbit::vec3>> vertices;
+
+    for (auto & v : mesh.vertices)
+    {
+        auto r = (double)std::rand() / (double)(RAND_MAX);
+        auto  g = (double)std::rand() / (double)(RAND_MAX);
+        auto b = (double)std::rand() / (double)(RAND_MAX);
+        vertices.push_back({ v, {r, g, b} });
+    }
+
+    return vertices;
+}
+
+void draw_mesh_2(rabbit::opengl_drawer & drawer, rabbit::mesh & mesh, std::vector<std::pair<rabbit::vec3, rabbit::vec3>> vertices, rabbit::mat4 model, int loc) 
+{
+    drawer.uniform_mat4f(loc, model);
+    drawer.draw_triangles(
+        (float*)vertices.data(), vertices.size(),
+        (uint32_t*)mesh.triangles.data(), mesh.triangles.size());
+} 
+
+rabbit::opengl_shader_program sprg(
+    VERTEX_SHADER_2,
+    FRAGMENT_SHADER_2);
+bool button_pressed = false;
+std::vector<rabbit::pose3> ring_positions;
+std::vector<rabbit::pose3> hand_positions;
+std::vector<rabbit::pose3> last_hand_positions;
 std::vector<std::pair<rabbit::vec3, rabbit::vec3>> vertices2;
 std::vector<std::pair<rabbit::vec3, rabbit::vec3>> vertices_sphere;
 static ovrLayerProjection2
@@ -641,6 +705,27 @@ renderer_render_frame(struct renderer* renderer, ovrTracking2* tracking)
         auto mesh = rabbit::surface_rubic_mesh(surf, 40, 40);
         auto mesh_sphere = rabbit::surface_rubic_mesh(surf_sphere, 40, 40);
 
+
+        drawer.set_buffers(
+            renderer->geometry.vertex_array,
+            renderer->geometry.vertex_buffer,
+            renderer->geometry.index_buffer);
+
+
+        float T = 10;
+        GLfloat vertices[] =
+        {
+            T,  T, 0.99999f * 10, 1., 1., 1., // Top Right
+            T, -T, 0.99999f * 10, 1., 1., 1., // Bottom Right
+            -T, -T, 0.99999f * 10, 1., 1., 1., // Bottom Left
+            -T,  T, 0.99999f * 10, 1., 1., 1., // Top Left
+        };
+        GLuint indices[] =    // Note that we start from 0!
+        {
+            0, 1, 3,  // First Triangle
+            1, 2, 3   // Second Triangle
+        };
+
         glUseProgram(renderer->program.program);
 
         int model_matrix_loc = renderer->program.uniform_locations[UNIFORM_MODEL_MATRIX];
@@ -651,15 +736,11 @@ renderer_render_frame(struct renderer* renderer, ovrTracking2* tracking)
         drawer.uniform_mat4f(view_matrix_loc, (const GLfloat*)&view_matrix);
         drawer.uniform_mat4f(proj_matrix_loc, (const GLfloat*)&projection_matrix);
 
-        drawer.set_buffers(
-            renderer->geometry.vertex_array,
-            renderer->geometry.vertex_buffer,
-            renderer->geometry.index_buffer);
 
         drawer.set_vertices_stride(6);
 
         glBindVertexArray(renderer->geometry.vertex_array);
-
+#if 0
         if (vertices2.size() == 0)
         {
             for (auto & v : mesh.vertices)
@@ -680,42 +761,161 @@ renderer_render_frame(struct renderer* renderer, ovrTracking2* tracking)
             }
         }
 
+        static uint8_t inited = 0;
+        if (!inited)
+        {
+
+            for (int i = 0; i < 8; ++i)
+            {
+                float strt = -1;
+                float fini = 1;
+
+                float k = (float)i / (float)(8 - 1);
+                float pos = strt * k + fini * (1 - k);
+
+                ring_positions.push_back(rabbit::mov3({0, 0, pos}));
+            }
+
+            hand_positions.resize(2);
+            last_hand_positions.resize(2);
+            inited = 1;
+        }
+
+
+        auto now = std::chrono::system_clock::now().time_since_epoch();
+        auto time = std::chrono::duration_cast<std::chrono::seconds>(now).count();
+
+        static double start_time = mticks() / 1000;
+
+        linalg::vec<float, 3> ppp = { 0, 0, sin(mticks() / 1000 - start_time) };
+
+        drawer.uniform_mat4f(model_matrix_loc, rabbit::mov3(ppp).to_mat4());
+
+        drawer.draw_triangles(
+            (float*)vertices_sphere.data(), vertices_sphere.size(),
+            (uint32_t*)mesh_sphere.triangles.data(), mesh_sphere.triangles.size());
+
+
+        int ii = 0;
+        for (auto & p : PoseMap_)
+        {
+            auto Pose_ = p.second;
+
+            auto _q = Pose_.Orientation;
+            auto _p = Pose_.Position;
+
+            rabbit::pose3 grip
+            {
+                { _q.x, _q.y, _q.z, _q.w },
+                { _p.x, _p.y, _p.z }
+            };
+
+
+            info("{%f,%f,%f,%f}, {%f,%f,%f}", _q.x, _q.y, _q.z, _q.w, _p.x, _p.y, _p.z);
+
+
+            drawer.uniform_mat4f(model_matrix_loc, grip.to_mat4());
+
+            drawer.draw_triangles(
+                (float*)vertices_sphere.data(), vertices_sphere.size(),
+                (uint32_t*)mesh_sphere.triangles.data(), mesh_sphere.triangles.size());
+
+            if (length(ppp - grip.lin) < 0.1) start_time = mticks() / 1000;
+
+            hand_positions[ii] = grip;
+            ii++;
+        }
+
+
+
+        if (button_pressed)
+            for (int i = 0; i < hand_positions.size(); ++i)
+                for (int j = 0; j < ring_positions.size(); ++j)
+                {
+                    if (length(hand_positions[i].lin - ring_positions[j].lin) < 0.2)
+                    {
+                        auto change = hand_positions[i] * last_hand_positions[i].inverse();
+                        ring_positions[j] = change * ring_positions[j];
+                        //ring_positions[j] = rabbit::pose3{{0,0,0,1}, {0,0,0.001}} * ring_positions[j];
+                        //nodraw=true;
+                    }
+                }
+
+
         for (int i = 0; i < 8; ++i)
         {
-            float strt = -1;
-            float fini = 1;
 
-            float k = (float)i / (float)(8 - 1);
-            float pos = strt * k + fini * (1 - k);
-
-            drawer.uniform_mat4f(model_matrix_loc, rabbit::mov3({0, 0, pos}).to_mat4());
+            drawer.uniform_mat4f(model_matrix_loc, ring_positions[i].to_mat4());
 
             drawer.draw_triangles(
                 (float*)vertices2.data(), vertices2.size(),
                 (uint32_t*)mesh.triangles.data(), mesh.triangles.size());
         }
 
-        auto now = std::chrono::system_clock::now().time_since_epoch();
-        auto time = std::chrono::duration_cast<std::chrono::seconds>(now).count();
-        
-        drawer.uniform_mat4f(model_matrix_loc, rabbit::mov3({0, 0, sin(mticks()/1000)}).to_mat4());
-        
-        drawer.draw_triangles(
-                (float*)vertices_sphere.data(), vertices_sphere.size(),
-                (uint32_t*)mesh_sphere.triangles.data(), mesh_sphere.triangles.size());
-
-        /*glBindBuffer(GL_ARRAY_BUFFER, renderer->geometry.vertex_buffer);
-        glBufferData(GL_ARRAY_BUFFER, 6 * sizeof(float)*vertices2.size(), vertices2.data(), GL_DYNAMIC_DRAW);
-
-        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, renderer->geometry.index_buffer);
-        glBufferData(GL_ELEMENT_ARRAY_BUFFER, 3 * sizeof(GLuint)*mesh.triangles.size(), mesh.triangles.data(),
-                     GL_DYNAMIC_DRAW);
-
-        glDrawElements(GL_TRIANGLES, 3 * sizeof(GLuint)*mesh.triangles.size(), GL_UNSIGNED_INT, NULL);*/
 
 
+        /*drawer.uniform_mat4f(model_matrix_loc, rabbit::pose3().to_mat4());
+        drawer.uniform_mat4f(view_matrix_loc, rabbit::pose3().to_mat4());
+        drawer.uniform_mat4f(proj_matrix_loc, rabbit::pose3().to_mat4());
+
+        drawer.set_vertices_stride(6);
+        drawer.draw_triangles(vertices, 4, indices, 2);*/
+#endif
+        auto surf0 = rabbit::torus_surface(4, 0.2);
+        auto surf2 = rabbit::sphere_surface(2);
+        auto surf3 = rabbit::torus_surface(7, 0.2);
+        auto surf4 = rabbit::torus_surface(8, 0.2);
+        auto surf5 = rabbit::sphere_surface(0.6);
+
+        auto mesh0 = rabbit::surface_rubic_mesh(surf0, 30, 20);
+        auto mesh2 = rabbit::surface_rubic_mesh(surf2, 30, 20);
+        auto mesh3 = rabbit::surface_rubic_mesh(surf3, 30, 20);
+        auto mesh4 = rabbit::surface_rubic_mesh(surf4, 30, 20);
+        auto mesh5 = rabbit::surface_rubic_mesh(surf5, 30, 20);
+
+        static int inited2 = 0;
+
+
+        static std::vector<std::pair<rabbit::vec3, rabbit::vec3>> h0;
+        static std::vector<std::pair<rabbit::vec3, rabbit::vec3>> h2;
+        static std::vector<std::pair<rabbit::vec3, rabbit::vec3>> h3;
+        static std::vector<std::pair<rabbit::vec3, rabbit::vec3>> h4;
+        static std::vector<std::pair<rabbit::vec3, rabbit::vec3>> h5;
+        if (!inited2) {
+            h0=draw_mesh(drawer,mesh0);
+            h2=draw_mesh(drawer,mesh2);
+            h3=draw_mesh(drawer,mesh3);
+            h4=draw_mesh(drawer,mesh4);
+            h5=draw_mesh(drawer,mesh5);
+            inited2 = 1;
+        }
+
+        auto RX = rabbit::rot3({1, 0, 0}, rabbit::deg(90));
+        double dtime = mticks()/1000;
+        auto model = rabbit::rot3({0, 0, 1}, rabbit::deg(dtime * 16));
+
+        draw_mesh_2(drawer,mesh0,h0,(RX*rabbit::rot3(rabbit::vec3{0.3,0.7,0}, rabbit::deg(20)) * model).to_mat4(),model_matrix_loc);
+        draw_mesh_2(drawer,mesh2,h2,(RX*model.inverse()).to_mat4(),model_matrix_loc);
+        draw_mesh_2(drawer,mesh3,h3,(RX*model).to_mat4(),model_matrix_loc);
+        draw_mesh_2(drawer,mesh4,h4,(RX*rabbit::rot3(rabbit::vec3{0.6,0.2,0}, rabbit::deg(20)) * model.inverse()).to_mat4(),model_matrix_loc);
+        draw_mesh_2(drawer,mesh5, h5,(RX*rabbit::mov3({0.55*sin(dtime), 0.55*cos(dtime), 0}) * model).to_mat4(),model_matrix_loc);
+
+
+
+        last_hand_positions = hand_positions;
 
         glBindVertexArray(0);
+
+
+
+        glUseProgram(0);
+
+
+
+
+
+
+
 
         glClearColor(0.0, 0.0, 0.0, 1.0);
         glScissor(0, 0, 1, framebuffer->height);
@@ -839,6 +1039,8 @@ app_handle_input(struct app* app)
     ovrInputCapabilityHeader capability;
     while (vrapi_EnumerateInputDevices(app->ovr, i, &capability) >= 0)
     {
+        info("devtype: %d", capability.Type);
+
         if (capability.Type == ovrControllerType_TrackedRemote)
         {
             ovrInputStateTrackedRemote input_state;
@@ -853,15 +1055,36 @@ app_handle_input(struct app* app)
                 back_button_down_current_frame |=
                     input_state.Buttons & ovrButton_Y;
             }
+
+            ovrTracking tracking;
+            vrapi_GetInputTrackingState(
+                app->ovr, capability.DeviceID,
+                0,
+                &tracking);
+
+            PoseMap_[capability.DeviceID] = tracking.HeadPose.Pose;
         }
+
+        /*if (capability.Type == ovrControllerType_StandardPointer)
+        {
+            ovrInputStateStandardPointer input_state;
+
+            GripPose_ = input_state.GripPose;
+            PointerPose_ = input_state.PointerPose;
+        }*/
+
         ++i;
     }
 
-    if (app->back_button_down_previous_frame &&
-            !back_button_down_current_frame)
+    //if (app->back_button_down_previous_frame && !back_button_down_current_frame)
+    if (back_button_down_current_frame)
     {
-        vrapi_ShowSystemUI(app->java, VRAPI_SYS_UI_CONFIRM_QUIT_MENU);
+        button_pressed = true;
+        //vrapi_ShowSystemUI(app->java, VRAPI_SYS_UI_CONFIRM_QUIT_MENU);
     }
+    else
+        button_pressed = false;
+
     app->back_button_down_previous_frame = back_button_down_current_frame;
 }
 
