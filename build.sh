@@ -24,6 +24,7 @@ $COMPILERPATH/aarch64-linux-android26-clang\
     -I ~/project/rabbit\
     -I ~/project/nos\
     -I ~/project/igris\
+    -I ~/project/ralgo\
     -I $NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/include/\
     -I $OVR_HOME/VrApi/Include\
     -L $NDK_HOME/platforms/android-26/arch-arm64/usr/lib\
@@ -40,6 +41,7 @@ $COMPILERPATH/aarch64-linux-android26-clang\
    ~/project/rabbit/rabbit/opengl/opengl_shader_program.cpp \
    ~/project/rabbit/rabbit/opengl/shader_collection.cpp \
    ~/project/rabbit/rabbit/mesh.cpp \
+   ~/project/rabbit/rabbit/font/naive.cpp \
    ~/project/rabbit/rabbit/space/pose3.cpp \
    /home/mirmik/Android/Sdk/ndk/22.1.7171670/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/arm-linux-androideabi/26/libc++.a
 

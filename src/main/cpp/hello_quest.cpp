@@ -18,6 +18,9 @@
 #include <rabbit/mesh.h>
 #include <rabbit/util.h>
 
+#include <rabbit/font/font.h>
+#include <rabbit/font/textzone.h>
+#include <rabbit/font/naive.h>
 
 #include <map>
 #include <chrono>
@@ -31,6 +34,9 @@
 static const char* TAG = "hello_quest";
 //ovrPosef PointerPose_;
 std::map<int, ovrPosef> PoseMap_;
+
+rabbit::font font;
+rabbit::textzone textzone;
 
 static const char*
 egl_get_error_string(EGLint error)
@@ -564,7 +570,7 @@ static const struct attrib_pointer ATTRIB_POINTERS[ATTRIB_END] =
 static void
 geometry_create(struct geometry* geometry)
 {
-    glGenVertexArrays(1, &geometry->vertex_array);
+    /*glGenVertexArrays(1, &geometry->vertex_array);
     glBindVertexArray(geometry->vertex_array);
     glGenBuffers(1, &geometry->vertex_buffer);
     glBindBuffer(GL_ARRAY_BUFFER, geometry->vertex_buffer);
@@ -578,7 +584,7 @@ geometry_create(struct geometry* geometry)
     }
     glGenBuffers(1, &geometry->index_buffer);
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, geometry->index_buffer);
-    glBindVertexArray(0);
+    glBindVertexArray(0);*/
 }
 
 static void
@@ -643,13 +649,13 @@ auto draw_mesh(rabbit::opengl_drawer & drawer, rabbit::mesh & mesh)
     return vertices;
 }
 
-void draw_mesh_2(rabbit::opengl_drawer & drawer, rabbit::mesh & mesh, std::vector<std::pair<rabbit::vec3, rabbit::vec3>> vertices, rabbit::mat4 model, int loc) 
+void draw_mesh_2(rabbit::opengl_drawer & drawer, rabbit::mesh & mesh, std::vector<std::pair<rabbit::vec3, rabbit::vec3>> vertices, rabbit::mat4 model, int loc)
 {
     drawer.uniform_mat4f(loc, model);
     drawer.draw_triangles(
         (float*)vertices.data(), vertices.size(),
         (uint32_t*)mesh.triangles.data(), mesh.triangles.size());
-} 
+}
 
 rabbit::opengl_shader_program sprg(
     VERTEX_SHADER_2,
@@ -663,6 +669,10 @@ std::vector<std::pair<rabbit::vec3, rabbit::vec3>> vertices_sphere;
 static ovrLayerProjection2
 renderer_render_frame(struct renderer* renderer, ovrTracking2* tracking)
 {
+    __android_log_print(ANDROID_LOG_VERBOSE, "hello_quest", "renderer_render_frame");
+
+    int sts;
+
     ovrMatrix4f model_matrix = ovrMatrix4f_CreateTranslation(0.0, 0.0, -1);
     model_matrix = ovrMatrix4f_Transpose(&model_matrix);
 
@@ -670,6 +680,21 @@ renderer_render_frame(struct renderer* renderer, ovrTracking2* tracking)
     layer.Header.Flags |=
         VRAPI_FRAME_LAYER_FLAG_CHROMATIC_ABERRATION_CORRECTION;
     layer.HeadPose = tracking->HeadPose;
+
+
+    if ((sts = glGetError()))
+    {
+        error("ERROR:: %s", egl_get_error_string(eglGetError()));
+        switch (sts)
+        {
+        case GL_INVALID_ENUM: __android_log_print(ANDROID_LOG_VERBOSE, "hello_quest", "GL_INVALID_ENUM"); break;
+        case GL_INVALID_VALUE: __android_log_print(ANDROID_LOG_VERBOSE, "hello_quest", "GL_INVALID_VALUE"); break;
+        case GL_INVALID_OPERATION: __android_log_print(ANDROID_LOG_VERBOSE, "hello_quest", "GL_INVALID_OPERATION"); break;
+        case GL_INVALID_FRAMEBUFFER_OPERATION: __android_log_print(ANDROID_LOG_VERBOSE, "hello_quest", "GL_INVALID_FRAMEBUFFER_OPERATION"); break;
+        case GL_OUT_OF_MEMORY: __android_log_print(ANDROID_LOG_VERBOSE, "hello_quest", "GL_OUT_OF_MEMORY"); break;
+        }
+        abort();
+    }
 
     for (int i = 0; i < VRAPI_FRAME_LAYER_EYE_MAX; ++i)
     {
@@ -706,13 +731,17 @@ renderer_render_frame(struct renderer* renderer, ovrTracking2* tracking)
         auto mesh_sphere = rabbit::surface_rubic_mesh(surf_sphere, 40, 40);
 
 
-        drawer.set_buffers(
-            renderer->geometry.vertex_array,
-            renderer->geometry.vertex_buffer,
-            renderer->geometry.index_buffer);
+        //drawer.set_buffers(
+        //    renderer->geometry.vertex_array,
+        //    renderer->geometry.vertex_buffer,
+        //    renderer->geometry.index_buffer);
+
+        renderer->geometry.vertex_buffer = drawer.VBO;
+        renderer->geometry.index_buffer = drawer.EBO;
+        renderer->geometry.vertex_array = drawer.VAO;
 
 
-        float T = 10;
+        /*float T = 10;
         GLfloat vertices[] =
         {
             T,  T, 0.99999f * 10, 1., 1., 1., // Top Right
@@ -724,7 +753,44 @@ renderer_render_frame(struct renderer* renderer, ovrTracking2* tracking)
         {
             0, 1, 3,  // First Triangle
             1, 2, 3   // Second Triangle
-        };
+        };*/
+
+        /*if ((sts = glGetError()))
+        {
+            switch (sts)
+            {
+            case GL_INVALID_ENUM: __android_log_print(ANDROID_LOG_VERBOSE, "hello_quest", "GL_INVALID_ENUM"); break;
+            case GL_INVALID_VALUE: __android_log_print(ANDROID_LOG_VERBOSE, "hello_quest", "GL_INVALID_VALUE"); break;
+            case GL_INVALID_OPERATION: __android_log_print(ANDROID_LOG_VERBOSE, "hello_quest", "GL_INVALID_OPERATION"); break;
+            case GL_INVALID_FRAMEBUFFER_OPERATION: __android_log_print(ANDROID_LOG_VERBOSE, "hello_quest", "GL_INVALID_FRAMEBUFFER_OPERATION"); break;
+            case GL_OUT_OF_MEMORY: __android_log_print(ANDROID_LOG_VERBOSE, "hello_quest", "GL_OUT_OF_MEMORY"); break;
+
+            }
+            abort();
+        }*/
+
+        static uint8_t inited1 = 0;
+        if (!inited1)
+        {
+            inited1 = 1;
+
+            font.init(rabbit::naive_font16x26_texture, GL_LUMINANCE);
+            textzone.init(10, 10);
+        }
+
+        drawer.draw_mesh(mesh_sphere,
+                         linalg::mat<float, 4, 4>((float*)&model_matrix),
+                         linalg::mat<float, 4, 4>((float*)&view_matrix),
+                         linalg::mat<float, 4, 4>((float*)&projection_matrix)
+                        );
+
+
+        linalg::mat<float,4,4> mm((float*)&model_matrix);
+        linalg::mat<float,4,4> vm((float*)&view_matrix);
+        linalg::mat<float,4,4> pm((float*)&projection_matrix);
+
+        auto cursor = rabbit::textzone_cursor(&textzone, 0, 0);
+        drawer.print_text(font, cursor, "This world was created by Mirmik", {0, 1, 0}, mul(mul(pm, vm), mm));
 
         glUseProgram(renderer->program.program);
 
@@ -740,7 +806,23 @@ renderer_render_frame(struct renderer* renderer, ovrTracking2* tracking)
         drawer.set_vertices_stride(6);
 
         glBindVertexArray(renderer->geometry.vertex_array);
-#if 0
+        glBindBuffer(GL_ARRAY_BUFFER, renderer->geometry.vertex_buffer);
+
+        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(GLfloat), (GLvoid*)0);
+        glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(GLfloat), (GLvoid*)(3 * sizeof(GLfloat)));
+        glEnableVertexAttribArray(0);
+        glEnableVertexAttribArray(1);
+
+        /*drawer.draw_mesh(
+            mesh_sphere,
+            linalg::identity,
+            linalg::identity,
+            linalg::identity
+        );*/
+
+
+
+#if 1
         if (vertices2.size() == 0)
         {
             for (auto & v : mesh.vertices)
@@ -861,6 +943,8 @@ renderer_render_frame(struct renderer* renderer, ovrTracking2* tracking)
         drawer.set_vertices_stride(6);
         drawer.draw_triangles(vertices, 4, indices, 2);*/
 #endif
+
+#if 0
         auto surf0 = rabbit::torus_surface(4, 0.2);
         auto surf2 = rabbit::sphere_surface(2);
         auto surf3 = rabbit::torus_surface(7, 0.2);
@@ -881,25 +965,30 @@ renderer_render_frame(struct renderer* renderer, ovrTracking2* tracking)
         static std::vector<std::pair<rabbit::vec3, rabbit::vec3>> h3;
         static std::vector<std::pair<rabbit::vec3, rabbit::vec3>> h4;
         static std::vector<std::pair<rabbit::vec3, rabbit::vec3>> h5;
-        if (!inited2) {
-            h0=draw_mesh(drawer,mesh0);
-            h2=draw_mesh(drawer,mesh2);
-            h3=draw_mesh(drawer,mesh3);
-            h4=draw_mesh(drawer,mesh4);
-            h5=draw_mesh(drawer,mesh5);
+        if (!inited2)
+        {
+            h0 = draw_mesh(drawer, mesh0);
+            h2 = draw_mesh(drawer, mesh2);
+            h3 = draw_mesh(drawer, mesh3);
+            h4 = draw_mesh(drawer, mesh4);
+            h5 = draw_mesh(drawer, mesh5);
             inited2 = 1;
+
+
+            font.init(rabbit::naive_font16x26_texture);
+            textzone.init(30, 30);
         }
 
         auto RX = rabbit::rot3({1, 0, 0}, rabbit::deg(90));
-        double dtime = mticks()/1000;
+        double dtime = mticks() / 1000;
         auto model = rabbit::rot3({0, 0, 1}, rabbit::deg(dtime * 16));
 
-        draw_mesh_2(drawer,mesh0,h0,(RX*rabbit::rot3(rabbit::vec3{0.3,0.7,0}, rabbit::deg(20)) * model).to_mat4(),model_matrix_loc);
-        draw_mesh_2(drawer,mesh2,h2,(RX*model.inverse()).to_mat4(),model_matrix_loc);
-        draw_mesh_2(drawer,mesh3,h3,(RX*model).to_mat4(),model_matrix_loc);
-        draw_mesh_2(drawer,mesh4,h4,(RX*rabbit::rot3(rabbit::vec3{0.6,0.2,0}, rabbit::deg(20)) * model.inverse()).to_mat4(),model_matrix_loc);
-        draw_mesh_2(drawer,mesh5, h5,(RX*rabbit::mov3({0.55*sin(dtime), 0.55*cos(dtime), 0}) * model).to_mat4(),model_matrix_loc);
-
+        draw_mesh_2(drawer, mesh0, h0, (RX * rabbit::rot3(rabbit::vec3{0.3, 0.7, 0}, rabbit::deg(20)) * model).to_mat4(), model_matrix_loc);
+        draw_mesh_2(drawer, mesh2, h2, (RX * model.inverse()).to_mat4(), model_matrix_loc);
+        draw_mesh_2(drawer, mesh3, h3, (RX * model).to_mat4(), model_matrix_loc);
+        draw_mesh_2(drawer, mesh4, h4, (RX * rabbit::rot3(rabbit::vec3{0.6, 0.2, 0}, rabbit::deg(20)) * model.inverse()).to_mat4(), model_matrix_loc);
+        draw_mesh_2(drawer, mesh5, h5, (RX * rabbit::mov3({0.55 * sin(dtime), 0.55 * cos(dtime), 0}) * model).to_mat4(), model_matrix_loc);
+#endif
 
 
         last_hand_positions = hand_positions;
@@ -910,8 +999,19 @@ renderer_render_frame(struct renderer* renderer, ovrTracking2* tracking)
 
         glUseProgram(0);
 
+        /*linalg::mat<float,4,4> mM {(const float*) &model_matrix};
+        linalg::mat<float,4,4> vM {(const float*) &view_matrix};
+        linalg::mat<float,4,4> pM {(const float*) &projection_matrix};
 
 
+        auto cursor = rabbit::textzone_cursor(&textzone, 0, 0);
+        drawer.print_text(font, cursor, "HelloWorld", {0, 1, 0});
+        drawer.print_text(font, cursor, "HelloWorld", {0, 1, 0});
+        drawer.print_text(font, cursor, "HelloWorld", {0, 1, 0});
+        drawer.print_text(font, cursor, "HelloWorld", {0, 1, 0});
+        drawer.print_text(font, cursor, "HelloWorld", {0, 1, 0});
+        drawer.print_text(font, cursor, "HelloWorld", {0, 1, 0});
+        drawer.print_text(font, cursor, "HelloWorld", {0, 1, 0});*/
 
 
 
