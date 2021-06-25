@@ -22,6 +22,13 @@
 #include <rabbit/font/textzone.h>
 #include <rabbit/font/naive.h>
 
+#include <crow/crow.h>
+#include <crow/nodes/spammer.h>
+
+#include <android/imagedecoder.h>
+#include <opencv2/imgcodecs.hpp>
+
+#include <thread>
 #include <map>
 #include <chrono>
 
@@ -785,9 +792,9 @@ renderer_render_frame(struct renderer* renderer, ovrTracking2* tracking)
                         );
 
 
-        linalg::mat<float,4,4> mm((float*)&model_matrix);
-        linalg::mat<float,4,4> vm((float*)&view_matrix);
-        linalg::mat<float,4,4> pm((float*)&projection_matrix);
+        linalg::mat<float, 4, 4> mm((float*)&model_matrix);
+        linalg::mat<float, 4, 4> vm((float*)&view_matrix);
+        linalg::mat<float, 4, 4> pm((float*)&projection_matrix);
 
         auto cursor = rabbit::textzone_cursor(&textzone, 0, 0);
         drawer.print_text(font, cursor, "This world was created by Mirmik", {0, 1, 0}, mul(mul(pm, vm), mm));
@@ -1212,17 +1219,47 @@ app_destroy(struct app* app)
     renderer_destroy(&app->renderer);
 }
 
+
+void routine(std::string_view message)
+{
+    __android_log_print(ANDROID_LOG_VERBOSE, "hello_quest", "STREAM");
+    int sts;
+
+    auto frame = cv::imdecode({message.data(), (int)message.size()}, cv::IMREAD_COLOR);
+}
+
+crow::udpgate udpgate;
+crow::spam_subscriber subs(routine);
+
 void
 android_main(struct android_app* android_app)
 {
     ANativeActivity_setWindowFlags(android_app->activity,
                                    AWINDOW_FLAG_KEEP_SCREEN_ON, 0);
 
+
+    udpgate.bind(12);
+    udpgate.open(10010);
+    subs.bind(1);
+    crow::start_spin();
+
+    std::thread thr ([&]()
+    {
+        auto addr = crow::address(".12.192.168.1.105:10041");
+
+        while (1)
+        {
+            subs.subscribe(1, addr);
+            std::this_thread::sleep_for(std::chrono::milliseconds(3000));
+        }
+    });
+
     info("attach current thread");
     ovrJava java;
     java.Vm = android_app->activity->vm;
     (*java.Vm).AttachCurrentThread(&java.Env, NULL);
     java.ActivityObject = android_app->activity->clazz;
+
 
     info("initialize vr api");
     const ovrInitParms init_parms = vrapi_DefaultInitParms(&java);
