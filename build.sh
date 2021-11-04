@@ -63,20 +63,14 @@ $COMPILERPATH/aarch64-linux-android26-clang\
    ~/project/rabbit/rabbit/opengl/shader_collection.cpp \
    ~/project/rabbit/rabbit/mesh.cpp \
    ~/project/rabbit/rabbit/font/naive.cpp \
-   ~/project/rabbit/rabbit/space/pose3.cpp \
-   ~/project/crow/crow/src/stdtime.cpp \
-   ~/project/crow/crow/src/print-stub.cpp \
-   ~/project/crow/crow/src/warn-stub.cpp \
    ~/project/crow/crow/pubsub/pubsub.cpp \
    ~/project/crow/crow/src/tower.cpp \
-   ~/project/crow/crow/select.cpp \
    ~/project/crow/crow/src/threads-posix.cpp \
    ~/project/crow/crow/src/gateway.cpp \
    ~/project/crow/crow/src/address.cpp \
    ~/project/crow/crow/src/hexer.c \
    ~/project/crow/crow/src/packet.cpp \
    ~/project/crow/crow/src/packet_ptr.cpp \
-   ~/project/crow/crow/src/allocation_malloc.cpp \
    ~/project/crow/crow/gates/udpgate.cpp \
    ~/project/crow/crow/proto/node.cpp \
    ~/project/crow/crow/proto/node-sync.cpp \

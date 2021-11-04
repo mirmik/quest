@@ -668,9 +668,9 @@ rabbit::opengl_shader_program sprg(
     VERTEX_SHADER_2,
     FRAGMENT_SHADER_2);
 bool button_pressed = false;
-std::vector<rabbit::pose3> ring_positions;
-std::vector<rabbit::pose3> hand_positions;
-std::vector<rabbit::pose3> last_hand_positions;
+std::vector<ralgo::pose3<rabbit::real>> ring_positions;
+std::vector<ralgo::pose3<rabbit::real>> hand_positions;
+std::vector<ralgo::pose3<rabbit::real>> last_hand_positions;
 std::vector<std::pair<rabbit::vec3, rabbit::vec3>> vertices2;
 std::vector<std::pair<rabbit::vec3, rabbit::vec3>> vertices_sphere;
 static ovrLayerProjection2
@@ -862,7 +862,7 @@ renderer_render_frame(struct renderer* renderer, ovrTracking2* tracking)
                 float k = (float)i / (float)(8 - 1);
                 float pos = strt * k + fini * (1 - k);
 
-                ring_positions.push_back(rabbit::mov3({0, 0, pos}));
+                ring_positions.push_back(ralgo::mov3<rabbit::real>({0, 0, pos}));
             }
 
             hand_positions.resize(2);
@@ -878,7 +878,7 @@ renderer_render_frame(struct renderer* renderer, ovrTracking2* tracking)
 
         linalg::vec<float, 3> ppp = { 0, 0, sin(mticks() / 1000 - start_time) };
 
-        drawer.uniform_mat4f(model_matrix_loc, rabbit::mov3(ppp).to_mat4());
+        drawer.uniform_mat4f(model_matrix_loc, ralgo::mov3<rabbit::real>(ppp).to_mat4());
 
         drawer.draw_triangles(
             (float*)vertices_sphere.data(), vertices_sphere.size(),
@@ -893,7 +893,7 @@ renderer_render_frame(struct renderer* renderer, ovrTracking2* tracking)
             auto _q = Pose_.Orientation;
             auto _p = Pose_.Position;
 
-            rabbit::pose3 grip
+            ralgo::pose3<rabbit::real> grip
             {
                 { _q.x, _q.y, _q.z, _q.w },
                 { _p.x, _p.y, _p.z }
@@ -1220,7 +1220,7 @@ app_destroy(struct app* app)
 }
 
 
-void routine(std::string_view message)
+void routine(igris::buffer message)
 {
     __android_log_print(ANDROID_LOG_VERBOSE, "hello_quest", "STREAM");
     int sts;
