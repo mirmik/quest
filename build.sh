@@ -1,26 +1,32 @@
 #!/bin/bash
-NDK_HOME=/home/mirmik/Android/Sdk/ndk/22.1.7171670
-OVR_HOME=/home/mirmik/src/ovr_sdk_mobile_1.44.0
-ANDROID_HOME=/home/mirmik/Android/Sdk
 
-JAVACPATH=/home/mirmik/soft/android-studio/jre/bin
+set -ex
+
+ANDROID_NUM=26
+ANDROID_PLATFORM=android-$ANDROID_NUM
+NDK_HOME=/home/mirmik/Android/Sdk/ndk/22.1.7171670
+OVR_HOME=/home/mirmik/src/ovr_sdk_mobile_1.50.0
+ANDROID_HOME=/home/mirmik/Android/Sdk
+#JAVACPATH=/home/mirmik/soft/android-studio/jre/bin/javac
+JAVACPATH=javac
 DEXPATH=$ANDROID_HOME/build-tools/28.0.3
 COMPILERPATH=$NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin
 
 rm -rf build
 mkdir -p build
 pushd build > /dev/null
-$JAVACPATH/javac\
-	-classpath $ANDROID_HOME/platforms/android-26/android.jar\
+$JAVACPATH\
+	-classpath $ANDROID_HOME/platforms/$ANDROID_PLATFORM/android.jar\
 	-d .\
 	../src/main/java/com/makepad/hello_quest/*.java
 $DEXPATH/dx --dex --output classes.dex .
 mkdir -p lib/arm64-v8a
 pushd lib/arm64-v8a > /dev/null
-$COMPILERPATH/aarch64-linux-android26-clang\
+$COMPILERPATH/aarch64-linux-android$ANDROID_NUM-clang\
     -march=armv8-a\
     -fPIC\
     -shared \
+    -std=c++17\
     -I ~/project/rabbit\
     -I ~/project/nos\
     -I ~/project/igris\
@@ -31,32 +37,18 @@ $COMPILERPATH/aarch64-linux-android26-clang\
     -I ~/Downloads/opencv-4.5.2/modules/imgcodecs/include/ \
     -I ~/Downloads/opencv-4.5.2/modules/core/include/ \
     -I ~/Downloads/opencv-4.5.2/include/ \
-    -L $NDK_HOME/platforms/android-26/arch-arm64/usr/lib\
+    -L $NDK_HOME/platforms/$ANDROID_PLATFORM/arch-arm64/usr/lib\
     -L $OVR_HOME/VrApi/Libs/Android/arm64-v8a/Debug\
     -L /home/mirmik/Downloads/OpenCV-android-sdk/sdk/native/staticlibs/arm64-v8a/ \
     -L /home/mirmik/Downloads/OpenCV-android-sdk/sdk/native/3rdparty/libs/arm64-v8a \
-    -o libmain.so \
+    -o libmain_cxx.so \
     -Wl,--start-group \
     -landroid\
     -llog\
     -lvrapi\
     -lGLESv3\
-    -lopencv_core \
-    -lopencv_imgcodecs \
-    -lopencv_imgproc \
     -lEGL\
-    -llibtiff \
-    -llibopenjp2 \
-    -littnotify \
-    -ltbb \
-    -llibjpeg-turbo \
-    -ltegra_hal \
-    -lIlmImf \
-    -llibwebp \
-    -lz \
-    -llibpng \
     -DWITH_OPENEXR=OFF -DBUILD_OPENEXR=OFF \
-   ../../../src/main/cpp/*.c   \
    ../../../src/main/cpp/*.cpp  \
    ~/project/rabbit/rabbit/opengl/drawer.cpp \
    ~/project/rabbit/rabbit/opengl/opengl_shader_program.cpp \
@@ -68,7 +60,6 @@ $COMPILERPATH/aarch64-linux-android26-clang\
    ~/project/crow/crow/src/threads-posix.cpp \
    ~/project/crow/crow/src/gateway.cpp \
    ~/project/crow/crow/src/address.cpp \
-   ~/project/crow/crow/src/hexer.c \
    ~/project/crow/crow/src/packet.cpp \
    ~/project/crow/crow/src/packet_ptr.cpp \
    ~/project/crow/crow/gates/udpgate.cpp \
@@ -78,40 +69,85 @@ $COMPILERPATH/aarch64-linux-android26-clang\
    ~/project/igris/igris/sync/syslock_mutex.cpp \
    ~/project/igris/igris/osutil/src/posix.cpp \
    ~/project/igris/igris/util/string.cpp \
-   ~/project/igris/igris/osutil/realtime.c \
-   ~/project/igris/igris/osinter/wait.c \
    ~/project/igris/igris/osinter/wait-linux.cpp \
+   ~/project/igris/igris/string/replace.cpp \
+   /home/mirmik/Android/Sdk/ndk/22.1.7171670/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/arm-linux-androideabi/$ANDROID_NUM/libc++.a \
+    -Wl,--end-group 
+
+$COMPILERPATH/aarch64-linux-android$ANDROID_NUM-clang\
+    -march=armv8-a\
+    -fPIC\
+    -shared \
+    -std=c11\
+    -I ~/project/rabbit\
+    -I ~/project/nos\
+    -I ~/project/igris\
+    -I ~/project/ralgo\
+    -I ~/project/crow\
+    -I $NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/include/\
+    -I $OVR_HOME/VrApi/Include\
+    -I ~/Downloads/opencv-4.5.2/modules/imgcodecs/include/ \
+    -I ~/Downloads/opencv-4.5.2/modules/core/include/ \
+    -I ~/Downloads/opencv-4.5.2/include/ \
+    -L $NDK_HOME/platforms/$ANDROID_PLATFORM/arch-arm64/usr/lib\
+    -L $OVR_HOME/VrApi/Libs/Android/arm64-v8a/Debug\
+    -L /home/mirmik/Downloads/OpenCV-android-sdk/sdk/native/staticlibs/arm64-v8a/ \
+    -L /home/mirmik/Downloads/OpenCV-android-sdk/sdk/native/3rdparty/libs/arm64-v8a \
+    -o libmain_cc.so \
+    -Wl,--start-group \
+    -landroid\
+    -llog\
+    -lvrapi\
+    -lGLESv3\
+    -lEGL\
+    -DWITH_OPENEXR=OFF -DBUILD_OPENEXR=OFF \
+   ../../../src/main/cpp/*.c   \
+   ~/project/igris/igris/osutil/realtime.c \
    ~/project/igris/igris/dprint/dprint_func_impl.c \
    ~/project/igris/igris/dprint/dprint_stdout.c \
-   ~/project/igris/igris/string/replace.cpp \
    ~/project/igris/igris/string/replace_substrings.c \
    ~/project/igris/igris/string/memmem.c \
-   /home/mirmik/Android/Sdk/ndk/22.1.7171670/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/arm-linux-androideabi/26/libc++.a \
+   /home/mirmik/Android/Sdk/ndk/22.1.7171670/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/arm-linux-androideabi/$ANDROID_NUM/libc++.a \
     -Wl,--end-group 
+
+    #-lopencv_core \
+    #-lopencv_imgcodecs \
+    #-lopencv_imgproc \
+    #-llibtiff \
+    #-llibopenjp2 \
+    #-littnotify \
+    #-ltbb \
+    #-llibjpeg-turbo \
+    #-ltegra_hal \
+   # -lIlmImf \
+  #  -llibwebp \
+ #   -lz \
+#    -llibpng \
 
 cp $OVR_HOME/VrApi/Libs/Android/arm64-v8a/Debug/libvrapi.so .
 popd > /dev/null
 aapt\
 	package\
 	-F hello_quest.apk\
-	-I $ANDROID_HOME/platforms/android-26/android.jar\
+	-I $ANDROID_HOME/platforms/$ANDROID_PLATFORM/android.jar\
 	-M ../src/main/AndroidManifest.xml\
 	-f
 aapt add hello_quest.apk classes.dex
-aapt add hello_quest.apk lib/arm64-v8a/libmain.so
+aapt add hello_quest.apk lib/arm64-v8a/libmain_cc.so
+aapt add hello_quest.apk lib/arm64-v8a/libmain_cxx.so
 aapt add hello_quest.apk lib/arm64-v8a/libvrapi.so
-aapt add hello_quest.apk /home/mirmik/Downloads/OpenCV-android-sdk/sdk/native/staticlibs/arm64-v8a/libopencv_core.a
-aapt add hello_quest.apk /home/mirmik/Downloads/OpenCV-android-sdk/sdk/native/staticlibs/arm64-v8a/libopencv_imgcodecs.a
-aapt add hello_quest.apk /home/mirmik/Downloads/OpenCV-android-sdk/sdk/native/staticlibs/arm64-v8a/libopencv_imgproc.a
-aapt add hello_quest.apk /home/mirmik/Downloads/OpenCV-android-sdk/sdk/native/3rdparty/libs/arm64-v8a/liblibopenjp2.a
-aapt add hello_quest.apk /home/mirmik/Downloads/OpenCV-android-sdk/sdk/native/3rdparty/libs/arm64-v8a/libittnotify.a
-aapt add hello_quest.apk /home/mirmik/Downloads/OpenCV-android-sdk/sdk/native/3rdparty/libs/arm64-v8a/libtbb.a
-aapt add hello_quest.apk /home/mirmik/Downloads/OpenCV-android-sdk/sdk/native/3rdparty/libs/arm64-v8a/liblibjpeg-turbo.a
-aapt add hello_quest.apk /home/mirmik/Downloads/OpenCV-android-sdk/sdk/native/3rdparty/libs/arm64-v8a/libtegra_hal.a
-aapt add hello_quest.apk /home/mirmik/Downloads/OpenCV-android-sdk/sdk/native/3rdparty/libs/arm64-v8a/libIlmImf.a
-aapt add hello_quest.apk /home/mirmik/Downloads/OpenCV-android-sdk/sdk/native/3rdparty/libs/arm64-v8a/liblibwebp.a
-aapt add hello_quest.apk /home/mirmik/Downloads/OpenCV-android-sdk/sdk/native/3rdparty/libs/arm64-v8a/liblibpng.a
-aapt add hello_quest.apk /home/mirmik/Downloads/OpenCV-android-sdk/sdk/native/3rdparty/libs/arm64-v8a/liblibtiff.a
+#aapt add hello_quest.apk /home/mirmik/Downloads/OpenCV-android-sdk/sdk/native/staticlibs/arm64-v8a/libopencv_core.a
+#aapt add hello_quest.apk /home/mirmik/Downloads/OpenCV-android-sdk/sdk/native/staticlibs/arm64-v8a/libopencv_imgcodecs.a
+#aapt add hello_quest.apk /home/mirmik/Downloads/OpenCV-android-sdk/sdk/native/staticlibs/arm64-v8a/libopencv_imgproc.a
+#aapt add hello_quest.apk /home/mirmik/Downloads/OpenCV-android-sdk/sdk/native/3rdparty/libs/arm64-v8a/liblibopenjp2.a
+#aapt add hello_quest.apk /home/mirmik/Downloads/OpenCV-android-sdk/sdk/native/3rdparty/libs/arm64-v8a/libittnotify.a
+#aapt add hello_quest.apk /home/mirmik/Downloads/OpenCV-android-sdk/sdk/native/3rdparty/libs/arm64-v8a/libtbb.a
+#aapt add hello_quest.apk /home/mirmik/Downloads/OpenCV-android-sdk/sdk/native/3rdparty/libs/arm64-v8a/liblibjpeg-turbo.a
+#aapt add hello_quest.apk /home/mirmik/Downloads/OpenCV-android-sdk/sdk/native/3rdparty/libs/arm64-v8a/libtegra_hal.a
+#aapt add hello_quest.apk /home/mirmik/Downloads/OpenCV-android-sdk/sdk/native/3rdparty/libs/arm64-v8a/libIlmImf.a
+#aapt add hello_quest.apk /home/mirmik/Downloads/OpenCV-android-sdk/sdk/native/3rdparty/libs/arm64-v8a/liblibwebp.a
+#aapt add hello_quest.apk /home/mirmik/Downloads/OpenCV-android-sdk/sdk/native/3rdparty/libs/arm64-v8a/liblibpng.a
+#aapt add hello_quest.apk /home/mirmik/Downloads/OpenCV-android-sdk/sdk/native/3rdparty/libs/arm64-v8a/liblibtiff.a
 
 apksigner\
 	sign\
