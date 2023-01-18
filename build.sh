@@ -34,9 +34,6 @@ $COMPILERPATH/aarch64-linux-android$ANDROID_NUM-clang\
     -I ~/project/crow\
     -I $NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/include/\
     -I $OVR_HOME/VrApi/Include\
-    -I ~/Downloads/opencv-4.5.2/modules/imgcodecs/include/ \
-    -I ~/Downloads/opencv-4.5.2/modules/core/include/ \
-    -I ~/Downloads/opencv-4.5.2/include/ \
     -L $NDK_HOME/platforms/$ANDROID_PLATFORM/arch-arm64/usr/lib\
     -L $OVR_HOME/VrApi/Libs/Android/arm64-v8a/Debug\
     -L /home/mirmik/Downloads/OpenCV-android-sdk/sdk/native/staticlibs/arm64-v8a/ \
