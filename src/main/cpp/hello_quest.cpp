@@ -13,6 +13,7 @@
 #include <map>
 //#include <opencv2/imgcodecs.hpp>
 #include <igris/buffer.h>
+#include <morpheus/ModelServer.h>
 #include <rabbit/font/font.h>
 #include <rabbit/font/naive.h>
 #include <rabbit/font/textzone.h>
@@ -33,11 +34,13 @@
 #endif // NDEBUG
 
 static const char *TAG = "hello_quest";
-// ovrPosef PointerPose_;
 std::map<int, ovrPosef> PoseMap_;
-
 rabbit::font font;
 rabbit::textzone textzone;
+
+export const char *controller_model_json;
+
+ModelServer model_server;
 
 struct framebuffer
 {
@@ -438,135 +441,6 @@ static void framebuffer_destroy(struct framebuffer *framebuffer)
     vrapi_DestroyTextureSwapChain(framebuffer->color_texture_swap_chain);
 }
 
-#define ATTRIB_BEGIN 0
-#define ATTRIB_POSITION 0
-#define ATTRIB_COLOR 1
-#define ATTRIB_END 2
-
-#define UNIFORM_BEGIN 0
-#define UNIFORM_MODEL_MATRIX 0
-#define UNIFORM_VIEW_MATRIX 1
-#define UNIFORM_PROJECTION_MATRIX 2
-#define UNIFORM_END 3
-
-static const char *ATTRIB_NAMES[ATTRIB_END] = {
-    "aPosition",
-    "aColor",
-};
-
-static const char *UNIFORM_NAMES[UNIFORM_END] = {
-    "uModelMatrix",
-    "uViewMatrix",
-    "uProjectionMatrix",
-};
-
-static const char VERTEX_SHADER[] = "#version 300 es\n"
-                                    "\n"
-                                    "in vec3 aPosition;\n"
-                                    "in vec3 aColor;\n"
-                                    "uniform mat4 uModelMatrix;\n"
-                                    "uniform mat4 uViewMatrix;\n"
-                                    "uniform mat4 uProjectionMatrix;\n"
-                                    "\n"
-                                    "out vec3 vColor;\n"
-                                    "void main()\n"
-                                    "{\n"
-                                    "	gl_Position = uProjectionMatrix * ( "
-                                    "uViewMatrix * ( uModelMatrix * vec4( "
-                                    "aPosition * 0.1, 1.0 ) ) );\n"
-                                    "	vColor = aColor;\n"
-                                    "}\n";
-
-static const char FRAGMENT_SHADER[] = "#version 300 es\n"
-                                      "\n"
-                                      "in lowp vec3 vColor;\n"
-                                      "out lowp vec4 outColor;\n"
-                                      "void main()\n"
-                                      "{\n"
-                                      "	outColor = vec4(vColor, 1.0);\n"
-                                      "}\n";
-
-static const char VERTEX_SHADER_2[] = "#version 300 es\n"
-                                      "\n"
-                                      "in vec3 aPosition;\n"
-                                      "in vec3 aColor;\n"
-                                      "uniform mat4 uModelMatrix;\n"
-                                      "uniform mat4 uViewMatrix;\n"
-                                      "uniform mat4 uProjectionMatrix;\n"
-                                      "\n"
-                                      "out vec3 vColor;\n"
-                                      "void main()\n"
-                                      "{\n"
-                                      "   gl_Position = uProjectionMatrix * ( "
-                                      "uViewMatrix * ( uModelMatrix * vec4( "
-                                      "aPosition * 0.1, 1.0 ) ) );\n"
-                                      "   vColor = aColor;\n"
-                                      "}\n";
-
-static const char FRAGMENT_SHADER_2[] = "#version 300 es\n"
-                                        "\n"
-                                        "in lowp vec3 vColor;\n"
-                                        "out lowp vec4 outColor;\n"
-                                        "void main()\n"
-                                        "{\n"
-                                        " outColor = vec4(vColor, 1.0);\n"
-                                        "}\n";
-
-/*static GLuint compile_shader(GLenum type, const char *string)
-{
-    GLuint shader = glCreateShader(type);
-    glShaderSource(shader, 1, &string, NULL);
-    glCompileShader(shader);
-    GLint status = 0;
-    glGetShaderiv(shader, GL_COMPILE_STATUS, &status);
-    if (status == GL_FALSE)
-    {
-        GLint length = 0;
-        glGetShaderiv(shader, GL_INFO_LOG_LENGTH, &length);
-        char *log = (char *)malloc(length);
-        glGetShaderInfoLog(shader, length, NULL, log);
-        error("can't compile shader: %s", log);
-        exit(EXIT_FAILURE);
-    }
-    return shader;
-}
-
-static void program_create(struct program *program)
-{
-    program->program = glCreateProgram();
-    GLuint vertex_shader = compile_shader(GL_VERTEX_SHADER, VERTEX_SHADER);
-    glAttachShader(program->program, vertex_shader);
-    GLuint fragment_shader =
-        compile_shader(GL_FRAGMENT_SHADER, FRAGMENT_SHADER);
-    glAttachShader(program->program, fragment_shader);
-    for (uint8_t attrib = ATTRIB_BEGIN; attrib != ATTRIB_END; ++attrib)
-    {
-        glBindAttribLocation(program->program, attrib, ATTRIB_NAMES[attrib]);
-    }
-    glLinkProgram(program->program);
-    GLint status = 0;
-    glGetProgramiv(program->program, GL_LINK_STATUS, &status);
-    if (status == GL_FALSE)
-    {
-        GLint length = 0;
-        glGetProgramiv(program->program, GL_INFO_LOG_LENGTH, &length);
-        char *log = (char *)malloc(length);
-        glGetProgramInfoLog(program->program, length, NULL, log);
-        error("can't link program: %s", log);
-        exit(EXIT_FAILURE);
-    }
-    for (uint8_t uniform = UNIFORM_BEGIN; uniform != UNIFORM_END; ++uniform)
-    {
-        program->uniform_locations[uniform] =
-            glGetUniformLocation(program->program, UNIFORM_NAMES[uniform]);
-    }
-}
-
-static void program_destroy(struct program *program)
-{
-    glDeleteProgram(program->program);
-}*/
-
 struct attrib_pointer
 {
     GLint size;
@@ -855,254 +729,25 @@ static ovrLayerProjection2 renderer_render_frame(struct renderer *renderer,
                          vm,
                          pm);
 
-        // drawer.set_buffers(
-        //    renderer->geometry.vertex_array,
-        //    renderer->geometry.vertex_buffer,
-        //    renderer->geometry.index_buffer);
-
-        /*float T = 10;
-        GLfloat vertices[] =
+        for (auto &model : model_server.models())
         {
-            T,  T, 0.99999f * 10, 1., 1., 1., // Top Right
-            T, -T, 0.99999f * 10, 1., 1., 1., // Bottom Right
-            -T, -T, 0.99999f * 10, 1., 1., 1., // Bottom Left
-            -T,  T, 0.99999f * 10, 1., 1., 1., // Top Left
-        };
-        GLuint indices[] =    // Note that we start from 0!
-        {
-            0, 1, 3,  // First Triangle
-            1, 2, 3   // Second Triangle
-        };*/
-
-        /*if ((sts = glGetError()))
-        {
-            switch (sts)
-            {
-            case GL_INVALID_ENUM: __android_log_print(ANDROID_LOG_VERBOSE,
-        "hello_quest", "GL_INVALID_ENUM"); break; case GL_INVALID_VALUE:
-        __android_log_print(ANDROID_LOG_VERBOSE, "hello_quest",
-        "GL_INVALID_VALUE"); break; case GL_INVALID_OPERATION:
-        __android_log_print(ANDROID_LOG_VERBOSE, "hello_quest",
-        "GL_INVALID_OPERATION"); break; case GL_INVALID_FRAMEBUFFER_OPERATION:
-        __android_log_print(ANDROID_LOG_VERBOSE, "hello_quest",
-        "GL_INVALID_FRAMEBUFFER_OPERATION"); break; case GL_OUT_OF_MEMORY:
-        __android_log_print(ANDROID_LOG_VERBOSE, "hello_quest",
-        "GL_OUT_OF_MEMORY"); break;
-
-            }
-            abort();
-        }*/
-
-        /*static uint8_t inited1 = 0;
-        if (!inited1) {
-          inited1 = 1;
-
-          font.init(rabbit::naive_font16x26_texture, GL_LUMINANCE);
-          textzone.init(10, 10);
+            auto &model_matrix = model.second.pose_matrix();
+            auto &mesh = model.second.mesh();
+            // get edges
+            auto &triangles = mesh.triangles();
+            auto edges = rabbit::edges_from_triangles(triangles);
+            drawer.draw_mesh(mesh,
+                             linalg::mul(to_world, model_matrix),
+                             vm,
+                             pm,
+                             {1, 0, 0, 1});
+            drawer.draw_mesh_edges(mesh.vertices(),
+                                   edges,
+                                   linalg::mul(to_world, model_matrix),
+                                   vm,
+                                   pm,
+                                   {0, 0, 0, 1});
         }
-
-        drawer.draw_mesh(mesh_sphere,
-                         linalg::mat<float, 4, 4>((float *)&model_matrix),
-                         linalg::mat<float, 4, 4>((float *)&view_matrix),
-                         linalg::mat<float, 4, 4>((float *)&projection_matrix),
-                         {0.5, 0.5, 0.5, 1});
-
-        linalg::mat<float, 4, 4> mm((float *)&model_matrix);
-        linalg::mat<float, 4, 4> vm((float *)&view_matrix);
-        linalg::mat<float, 4, 4> pm((float *)&projection_matrix);
-
-        auto cursor = rabbit::textzone_cursor(&textzone, 0, 0);
-        drawer.print_text(font, cursor, "This world was created by Mirmik",
-                          {0, 1, 0}, mul(mul(pm, vm), mm));
-
-        glUseProgram(renderer->program.program);
-
-        int model_matrix_loc =
-            renderer->program.uniform_locations[UNIFORM_MODEL_MATRIX];
-        int view_matrix_loc =
-            renderer->program.uniform_locations[UNIFORM_VIEW_MATRIX];
-        int proj_matrix_loc =
-            renderer->program.uniform_locations[UNIFORM_PROJECTION_MATRIX];
-
-        drawer.uniform_mat4f(model_matrix_loc, (const GLfloat *)&model_matrix);
-        drawer.uniform_mat4f(view_matrix_loc, (const GLfloat *)&view_matrix);
-        drawer.uniform_mat4f(proj_matrix_loc, (const GLfloat
-        *)&projection_matrix);
-
-        drawer.set_vertices_stride(6);
-
-        glBindVertexArray(renderer->geometry.vertex_array);
-        glBindBuffer(GL_ARRAY_BUFFER, renderer->geometry.vertex_buffer);
-
-        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(GLfloat),
-                              (GLvoid *)0);
-        glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(GLfloat),
-                              (GLvoid *)(3 * sizeof(GLfloat)));
-        glEnableVertexAttribArray(0);
-        glEnableVertexAttribArray(1);
-    */
-        /*drawer.draw_mesh(
-            mesh_sphere,
-            linalg::identity,
-            linalg::identity,
-            linalg::identity
-        );*/
-        /*
-        #if 1
-            if (vertices2.size() == 0) {
-              for (auto &v : mesh.vertices()) {
-                auto r = (double)std::rand() / (double)(RAND_MAX);
-                auto g = (double)std::rand() / (double)(RAND_MAX);
-                auto b = (double)std::rand() / (double)(RAND_MAX);
-                vertices2.push_back({v, {r, g, b}});
-              }
-
-              for (auto &v : mesh_sphere.vertices()) {
-                auto r = (double)std::rand() / (double)(RAND_MAX);
-                auto g = (double)std::rand() / (double)(RAND_MAX);
-                auto b = (double)std::rand() / (double)(RAND_MAX);
-                vertices_sphere.push_back({v, {r, g, b}});
-              }
-            }
-
-            static uint8_t inited = 0;
-            if (!inited) {
-
-              for (int i = 0; i < 8; ++i) {
-                float strt = -1;
-                float fini = 1;
-
-                float k = (float)i / (float)(8 - 1);
-                float pos = strt * k + fini * (1 - k);
-
-                ring_positions.push_back(ralgo::mov3<float>({0, 0, pos}));
-              }
-
-              hand_positions.resize(2);
-              last_hand_positions.resize(2);
-              inited = 1;
-            }
-
-            auto now = std::chrono::system_clock::now().time_since_epoch();
-            auto time =
-        std::chrono::duration_cast<std::chrono::seconds>(now).count();
-
-            static double start_time = mticks() / 1000;
-
-            linalg::vec<float, 3> ppp = {0, 0, sin(mticks() / 1000 -
-        start_time)};
-
-            drawer.uniform_mat4f(model_matrix_loc,
-        ralgo::mov3<float>(ppp).to_mat4());
-
-            drawer.draw_triangles((float *)vertices_sphere.data(),
-                                  vertices_sphere.size(),
-                                  (uint32_t *)mesh_sphere.triangles().data(),
-                                  mesh_sphere.triangles().size());
-
-            int ii = 0;
-            for (auto &p : PoseMap_) {
-              auto Pose_ = p.second;
-
-              auto _q = Pose_.Orientation;
-              auto _p = Pose_.Position;
-
-              ralgo::pose3<float> grip{{_q.x, _q.y, _q.z, _q.w}, {_p.x, _p.y,
-        _p.z}};
-
-              info("{%f,%f,%f,%f}, {%f,%f,%f}", _q.x, _q.y, _q.z, _q.w, _p.x,
-        _p.y, _p.z);
-
-              drawer.uniform_mat4f(model_matrix_loc, grip.to_mat4());
-
-              drawer.draw_triangles((float *)vertices_sphere.data(),
-                                    vertices_sphere.size(),
-                                    (uint32_t *)mesh_sphere.triangles().data(),
-                                    mesh_sphere.triangles().size());
-
-              if (length(ppp - grip.lin) < 0.1)
-                start_time = mticks() / 1000;
-
-              hand_positions[ii] = grip;
-              ii++;
-            }
-
-            if (button_pressed)
-              for (int i = 0; i < hand_positions.size(); ++i)
-                for (int j = 0; j < ring_positions.size(); ++j) {
-                  if (length(hand_positions[i].lin - ring_positions[j].lin) <
-        0.2) { auto change = hand_positions[i] *
-        last_hand_positions[i].inverse(); ring_positions[j] = change *
-        ring_positions[j];
-                    // ring_positions[j] = rabbit::pose3{{0,0,0,1}, {0,0,0.001}}
-        *
-                    // ring_positions[j]; nodraw=true;
-                  }
-                }
-
-            for (int i = 0; i < 8; ++i) {
-
-              drawer.uniform_mat4f(model_matrix_loc,
-        ring_positions[i].to_mat4());
-
-              drawer.draw_triangles((float *)vertices2.data(), vertices2.size(),
-                                    (uint32_t *)mesh.triangles().data(),
-                                    mesh.triangles().size());
-            }
-
-            /*drawer.uniform_mat4f(model_matrix_loc, rabbit::pose3().to_mat4());
-            drawer.uniform_mat4f(view_matrix_loc, rabbit::pose3().to_mat4());
-            drawer.uniform_mat4f(proj_matrix_loc, rabbit::pose3().to_mat4());
-
-            drawer.set_vertices_stride(6);
-            drawer.draw_triangles(vertices, 4, indices, 2);*/
-        //#endif
-
-#if 0
-        auto surf0 = rabbit::torus_surface(4, 0.2);
-        auto surf2 = rabbit::sphere_surface(2);
-        auto surf3 = rabbit::torus_surface(7, 0.2);
-        auto surf4 = rabbit::torus_surface(8, 0.2);
-        auto surf5 = rabbit::sphere_surface(0.6);
-
-        auto mesh0 = rabbit::surface_rubic_mesh(surf0, 30, 20);
-        auto mesh2 = rabbit::surface_rubic_mesh(surf2, 30, 20);
-        auto mesh3 = rabbit::surface_rubic_mesh(surf3, 30, 20);
-        auto mesh4 = rabbit::surface_rubic_mesh(surf4, 30, 20);
-        auto mesh5 = rabbit::surface_rubic_mesh(surf5, 30, 20);
-
-        static int inited2 = 0;
-
-
-        static std::vector<std::pair<rabbit::vec3, rabbit::vec3>> h0;
-        static std::vector<std::pair<rabbit::vec3, rabbit::vec3>> h2;
-        static std::vector<std::pair<rabbit::vec3, rabbit::vec3>> h3;
-        static std::vector<std::pair<rabbit::vec3, rabbit::vec3>> h4;
-        static std::vector<std::pair<rabbit::vec3, rabbit::vec3>> h5;
-        if (!inited2)
-        {
-            h0 = draw_mesh(drawer, mesh0);
-            h2 = draw_mesh(drawer, mesh2);
-            h3 = draw_mesh(drawer, mesh3);
-            h4 = draw_mesh(drawer, mesh4);
-            h5 = draw_mesh(drawer, mesh5);
-            inited2 = 1;
-
-
-            font.init(rabbit::naive_font16x26_texture);
-            textzone.init(30, 30);
-        }
-
-        auto RX = rabbit::rot3({1, 0, 0}, rabbit::deg(90));
-        double dtime = mticks() / 1000;
-        auto model = rabbit::rot3({0, 0, 1}, rabbit::deg(dtime * 16));
-
-        draw_mesh_2(drawer, mesh0, h0, (RX * rabbit::rot3(rabbit::vec3{0.3, 0.7, 0}, rabbit::deg(20)) * model).to_mat4(), model_matrix_loc);
-        draw_mesh_2(drawer, mesh2, h2, (RX * model.inverse()).to_mat4(), model_matrix_loc);
-        draw_mesh_2(drawer, mesh3, h3, (RX * model).to_mat4(), model_matrix_loc);
-        draw_mesh_2(drawer, mesh4, h4, (RX * rabbit::rot3(rabbit::vec3{0.6, 0.2, 0}, rabbit::deg(20)) * model.inverse()).to_mat4(), model_matrix_loc);
-        draw_mesh_2(drawer, mesh5, h5, (RX * rabbit::mov3({0.55 * sin(dtime), 0.55 * cos(dtime), 0}) * model).to_mat4(), model_matrix_loc);
-#endif
 
         last_hand_positions = hand_positions;
 
@@ -1314,6 +959,8 @@ void android_main(struct android_app *android_app)
     ANDROID_APP = android_app;
     ANativeActivity_setWindowFlags(
         android_app->activity, AWINDOW_FLAG_KEEP_SCREEN_ON, 0);
+
+    model_server.start_server();
 
     info("attach current thread");
     ovrJava java;

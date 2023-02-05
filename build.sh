@@ -59,11 +59,12 @@ $COMPILERPATH/aarch64-linux-android$ANDROID_NUM-clang\
     -march=armv8-a\
     -fPIC\
     -shared \
-    -std=c++17\
+    -std=c++20\
     -I ~/project/rabbit\
     -I ~/project/nos\
     -I ~/project/igris\
     -I ~/project/ralgo\
+    -I ~/project/morpheus\
     -I $NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/include/\
     -I $OVR_HOME/VrApi/Include\
     -L $NDK_HOME/platforms/$ANDROID_PLATFORM/arch-arm64/usr/lib\
@@ -83,13 +84,13 @@ $COMPILERPATH/aarch64-linux-android$ANDROID_NUM-clang\
    ~/project/rabbit/rabbit/opengl/opengl_shader_program.cpp \
    ~/project/rabbit/rabbit/opengl/shader_collection.cpp \
    ~/project/rabbit/rabbit/mesh.cpp \
+   ~/project/rabbit/rabbit/mesh/mesh.cpp \
    ~/project/rabbit/rabbit/font/naive.cpp \
    ~/project/igris/igris/sync/syslock_mutex.cpp \
    ~/project/igris/igris/osutil/src/posix.cpp \
    ~/project/igris/igris/util/string.cpp \
    ~/project/igris/igris/osinter/wait-linux.cpp \
    ~/project/igris/igris/string/replace.cpp \
-    ~/project/nos/nos/trent/json.cpp \
     ~/project/nos/nos/print/print.cpp \
     ~/project/nos/nos/print/stdtype.cpp \
     ~/project/nos/nos/fprint/fprint.cpp \
@@ -97,16 +98,20 @@ $COMPILERPATH/aarch64-linux-android$ANDROID_NUM-clang\
     ~/project/nos/nos/util/nos_numconvert.cpp \
     ~/project/nos/nos/io/ostream.cpp \
     ~/project/nos/nos/io/istream.cpp \
+    ~/project/nos/nos/trent/trent.cpp \
+    ~/project/nos/nos/trent/json.cpp \
     ~/project/nos/nos/input/input.cpp \
     ~/project/nos/nos/io/impls/current_ostream_stdout.cpp \
     ~/project/nos/nos/io/stdfile.cpp \
     ~/project/nos/nos/io/file.cpp \
     ~/project/nos/nos/inet/tcp_client.cpp \
+    ~/project/nos/nos/inet/tcp_server.cpp \
     ~/project/nos/nos/inet/tcp_socket.cpp \
     ~/project/nos/nos/inet/udp_socket.cpp \
     ~/project/nos/nos/inet/common.cpp \
     ~/project/nos/nos/util/string.cpp \
     ~/project/nos/nos/util/osutil_unix.cpp \
+    ~/project/morpheus/morpheus/ModelServer.cpp \
    /home/mirmik/Android/Sdk/ndk/22.1.7171670/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/arm-linux-androideabi/$ANDROID_NUM/libc++.a \
     -Wl,--end-group 
 
